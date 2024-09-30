@@ -1,0 +1,339 @@
+//------------------------------------------------
+//--- 010 Editor v13.0.2 Binary Template
+//
+//      File: BG3TIM2.bt
+//   Authors: WarpZephyr
+//   Version: 1.1.3
+//   Purpose: Battle Gear 3 TIM2 textures.
+//  Category: Texture
+// File Mask: *.TM2
+//  ID Bytes: 54 49 4D 32
+//   History: 
+//------------------------------------------------
+
+LittleEndian();
+
+// To allow sharing ClutStorageMode enum between ClutType and GsTex0 without a ubyte and uint64 version.
+BitfieldDisablePadding();
+
+// Helper Functions
+//------------------------------------------------
+
+void Align(int alignment)
+{
+    if (FTell() % alignment > 0)
+    {
+        FSkip(alignment - (FTell() % alignment));
+    }
+}
+
+void AlignFormatID()
+{
+    local int alignment <hidden=true> = header.formatID == ALIGN16 ? 16 :
+                                        header.formatID == ALIGN128 ? 128 :
+                                        header.formatID == ALIGN1024 ? 1024 :
+                                        Assert(Str("Unknown FormatID: %d", header.formatID), false);
+    Align(alignment);
+}
+
+// TIM2 Enums and defines
+//------------------------------------------------
+
+#define PICTURE_HEADER_SIZE 48
+#define EXTENDED_HEADER_SIZE 16
+
+enum <ubyte> FormatID
+{
+    ALIGN16 = 0,
+    ALIGN128 = 1,
+    ALIGN1024 = 2
+};
+
+// Color type used by CLUT and image data.
+enum <ubyte> ColorType
+{
+	None = 0,        // No CLUT, clutType only.
+	RGB16 = 1,       // 16 bit color for clutType and imageType.
+	RGB24 = 2,       // 24 bit color for imageType only.
+	RGB32 = 3,       // 32 bit color for clutType and imageType.
+	IndexColor4 = 4, // 4-bit indexed, 16 color texture for imageType only.
+	IndexColor8 = 5	 // 8-bit indexed, 256 color texture for imageType only.
+};
+
+enum <ubyte> ClutStorageMode
+{
+    CSM1 = 0,
+    CSM2 = 1
+};
+
+// Defines how pixel are arranged in each 32-bit word of local memory.
+enum <uint64> PixelStorageMode
+{
+    PSMCT32 = 0,   // RGBA32, uses 32-bit per pixel.
+    PSMCT24 = 1,   // RGB24, uses 24-bit per pixel with the upper 8 bit unused.
+    PSMCT16 = 2,   // RGBA16 unsigned, pack two pixels in 32-bit in little endian order.
+    PSMCT16S = 10, // RGBA16 signed, pack two pixels in 32-bit in little endian order.
+    PSMT8 = 19,    // 8-bit indexed, packing 4 pixels per 32-bit.
+    PSMT4 = 20,    // 4-bit indexed, packing 8 pixels per 32-bit.
+    PSMT8H = 27,   // 8-bit indexed, but the upper 24-bit are unused.
+    PSMT4HL = 36,  // 4-bit indexed, but the upper 24-bit are unused.
+    PSMT4HH = 44,  // 4-bit indexed, where the bits 4-7 are evaluated and the rest discarded.
+    PSMZ32 = 48,   // 32-bit Z buffer
+    PSMZ24 = 49,   // 24-bit Z buffer with the upper 8-bit unused
+    PSMZ16 = 50,   // 16-bit unsigned Z buffer, pack two pixels in 32-bit in little endian order.
+    PSMZ16S = 58   // 16-bit signed Z buffer, pack two pixels in 32-bit in little endian order.
+};
+
+enum <uint64> TextureColorComponent
+{
+    RGB = 0,
+    RGBA = 1
+};
+
+enum <uint64> TextureFunction
+{
+    Modulate = 0,
+    Decal = 1,
+    Hilight = 2,
+    Hilight2 = 3
+};
+
+// Battle Gear 3 structures
+//------------------------------------------------
+
+#define SUB_IMAGE_SIZE 32
+
+typedef struct
+{
+    char name[16];
+    uint unk10; Assert(unk10 == 0); // Part of name?
+    uint unk14; Assert(unk10 == 0); // Part of name?
+    ushort width;
+    ushort height;
+    ushort x;
+    ushort y;
+} SubImage <bgcolor=cDkRed, read=ReadSubImage, optimize=false>;
+
+string ReadSubImage(SubImage& image)
+{
+    return Str("[%d, %d] <%d, %d> %s", image.width, image.height, image.x, image.y, image.name);
+}
+
+// TIM2 structures
+//------------------------------------------------
+
+typedef struct
+{
+    char magic[4]; Assert(magic == "TIM2");
+    ubyte formatVersion; // 0x00-0x7F reserved, 0x80-0xBF incompatible non-standard, 0xC0-0xFF compatible non-standard.
+    FormatID formatID;
+    ushort pictureCount;
+    AlignFormatID();
+} TIM2_HEADER <bgcolor=cLtRed>;
+
+typedef struct
+{
+    ColorType clutColorType : 6;
+    ubyte clutCompoundFlag : 1;
+    ClutStorageMode clutStorageMode : 1; // 0 = CSM1, 1 = CSM2
+} ClutType <read=ReadClutType>;
+
+string ReadClutType(ClutType& clutType)
+{
+    return Str("%s | %s | Compound: %s",
+        EnumToString(clutType.clutColorType),
+        EnumToString(clutType.clutStorageMode),
+        clutType.clutCompoundFlag == 1 ? "True" : "False");
+}
+
+typedef struct
+{
+	uint64 TBP0               : 14; // Texture base pointer (Address/256)
+	uint64 TBW                :  6; // Texture buffer width (Texels/64)
+	PixelStorageMode PSM      :  6; // Texture pixel storage format (0 = 32bit RGBA)
+	uint64 TW                 :  4; // Texture Width = 2^TW
+	uint64 TH                 :  4; // Texture Height = 2^TH
+	TextureColorComponent TCC :  1; // Texture color component, 0 = RGB, 1 = RGBA
+	TextureFunction TFX       :  2; // Texture function
+	uint64 CBP                : 14; // CLUT buffer base pointer (Address/256)
+	PixelStorageMode CPSM     :  4; // CLUT pixel storage format
+	ClutStorageMode CSM       :  1; // CLUT storage mode, 0 = CSM1, 1 = CSM2
+	uint64 CSA                :  5; // CLUT entry offset
+	uint64 CLD                :  3; // CLUT buffer load control
+} GsTex0;
+
+typedef struct
+{
+    uint64 LCM       : 1;  // LOD Calculation method
+    uint64 reserved1 : 1;  Assert(reserved1 == 0);
+    uint64 MXL       : 3;  // Maximum MIP level
+    uint64 MMAG      : 1;  // Filter when texture is expanded
+    uint64 MMIN      : 3;  // Filter when texture is reduced
+    uint64 MTBA      : 1;  // Specification of MIPMAP texture base address of Level 1 or more
+    uint64 reserved2 : 9;  Assert(reserved2 == 0);
+    uint64 L         : 2;  // LOD Parameter value L
+    uint64 reserved3 : 11; Assert(reserved3 == 0);
+    uint64 K         : 12; // LOD Parameter value K
+    uint64 reserved4 : 20; Assert(reserved4 == 0);
+} GsTex1;
+
+typedef struct
+{
+    uint32 TA0       : 8; // TA0 field of TEXA register
+    uint32 reserved1 : 7; Assert(reserved1 == 0);
+    uint32 AEM       : 1; // AEM bit of TEXA register
+    uint32 TA1       : 8; // TAI field of TEXA register
+    uint32 reserved2 : 6; Assert(reserved2 == 0);
+    uint32 PABE      : 1; // PABE bit of PABE register
+    uint32 FBA       : 1; // FBA bit of FBA_1 and FBA_2 registers
+} GsTexaFbaPabe;
+
+typedef struct
+{
+    uint32 CBW      : 6;  // CLUT buffer width
+    uint32 COU      : 6;  // CLUT offset U
+    uint32 COV      : 10; // CLUT offset V
+    uint32 reserved : 10; Assert(reserved == 0);
+} GsTexClut;
+
+typedef struct
+{
+    uint64 TBP1     : 14; // MIPMAP Level 1 texture base pointer
+    uint64 TBW1     : 6;  // MIPMAP Level 1 texture buffer width
+    uint64 TBP2     : 14; // MIPMAP Level 2 texture base pointer
+    uint64 TBW2     : 6;  // MIPMAP Level 2 texture buffer width
+    uint64 TBP3     : 14; // MIPMAP Level 3 texture base pointer
+    uint64 TBW3     : 6;  // MIPMAP Level 3 texture buffer width
+    uint64 reserved : 4;  Assert(reserved == 0);
+} GsMiptbp1;
+
+typedef struct
+{
+    uint64 TBP4     : 14; // MIPMAP Level 4 texture base pointer
+    uint64 TBW4     : 6;  // MIPMAP Level 4 texture buffer width
+    uint64 TBP5     : 14; // MIPMAP Level 5 texture base pointer
+    uint64 TBW5     : 6;  // MIPMAP Level 5 texture buffer width
+    uint64 TBP6     : 14; // MIPMAP Level 6 texture base pointer
+    uint64 TBW6     : 6;  // MIPMAP Level 6 texture buffer width
+    uint64 reserved : 4;  Assert(reserved == 0);
+} GsMiptbp2;
+
+typedef struct(ubyte mipMapCount)
+{
+    GsMiptbp1 gsMiptbp1;    // Value to be stored into MIPTBP1 register of GS
+    GsMiptbp2 gsMiptbp2;    // Value to be stored into MIPTBP2 register of GS
+    uint size[mipMapCount]; // Array that shows the byte size of each texture
+
+    Align(16);
+} TIM2_MIPMAP_HEADER;
+
+typedef struct
+{
+    char magic[4];      Assert(magic == "eXt\0");
+    uint userSpaceSize; // Total size of the user space
+    uint userDataSize;  // Size of the user data (Pointer to the string comment)
+    uint reserved; Assert(reserved == 0);
+} TIM2_EXTENDED_HEADER;
+
+typedef struct
+{
+    // Picture header
+	uint totalSize;
+    uint clutSize;
+	uint imageSize;
+    ushort headerSize;
+    ushort clutColorCount;
+	ubyte pictureFormat;
+	ubyte mipMapCount;
+	ClutType clutType;
+	ColorType imageColorType;
+	ushort width;
+	ushort height;
+	GsTex0 gsTex0;
+	GsTex1 gsTex1;
+    GsTexaFbaPabe gsTexaFbaPabe; // bitfield of TEXA, FBA and PABE
+    GsTexClut gsTexClut;         // TEXCLUT (lower 32 bits)
+
+    // Other headers
+    if (headerSize > 48)
+    {
+        // Mipmap header
+        local uquad mipMapHeaderSize <hidden=true>;
+        if (mipMapCount > 1)
+        {
+            local uquad mipMapStart <hidden=true> = FTell();
+            TIM2_MIPMAP_HEADER mipmapHeader(mipMapCount);
+            local uquad mipMapEnd <hidden=true> = FTell();
+
+            // Lazy way to get mipmap header size.
+            mipMapHeaderSize = mipMapEnd - mipMapStart;
+        }
+        else
+        {
+            mipMapHeaderSize = 0;
+        }
+
+        // Check for official extended header
+        local uint userDataSize <hidden=true>;
+        local uint commentSize <hidden=true>;
+        local uquad pos <hidden=true> = FTell();
+        if (ReadByte(pos)     == 'e' &&
+            ReadByte(pos + 1) == 'X' &&
+            ReadByte(pos + 2) == 't' &&
+            ReadByte(pos + 3) == '\0')
+        {
+            TIM2_EXTENDED_HEADER extendedHeader;
+            userDataSize = extendedHeader.userDataSize;
+            commentSize = extendedHeader.userSpaceSize - EXTENDED_HEADER_SIZE - extendedHeader.userDataSize;
+        }
+        else
+        {
+            userDataSize = headerSize - PICTURE_HEADER_SIZE - mipMapHeaderSize;
+            commentSize = 0;
+        }
+        
+        // User space
+        // Battle Gear 3 structures
+        local int subImageCount <hidden=true> = userDataSize / SUB_IMAGE_SIZE;
+        if (subImageCount > 0)
+        {
+            SubImage subImages[subImageCount];
+        }
+        
+        // Comment
+        // If an official extended header is found,
+        // and UserSpaceSize without EXTENDED_HEADER_SIZE is greater than UserDataSize,
+        // a null-terminated ASCII encoded comment string should be present.
+        if (commentSize > 0)
+        {
+            char comment[commentSize];
+        }
+    }
+
+    // Image Data
+    if (imageSize > 0)
+    {
+        AlignFormatID();
+        ubyte imageData[imageSize] <bgcolor=cLtGreen>;
+    }
+    
+    // CLUT Data
+    if (clutSize > 0)
+    {
+        AlignFormatID();
+        ubyte clutData[clutSize] <bgcolor=cGreen>;
+    }
+} TIM2_PICTURE <bgcolor=cRed, optimize=false>;
+
+typedef struct 
+{
+    TIM2_HEADER header;
+    if (header.pictureCount > 0)
+    {
+        TIM2_PICTURE pictures[header.pictureCount];
+    }
+} TIM2 <bgcolor=cLtRed>;
+
+//------------------------------------------------
+
+TIM2 tm2;

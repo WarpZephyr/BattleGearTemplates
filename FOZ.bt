@@ -1,0 +1,36 @@
+//------------------------------------------------
+//--- 010 Editor v13.0.2 Binary Template
+//
+//      File: FOZ.bt
+//   Authors: WarpZephyr
+//   Version: 1.0.0
+//   Purpose: Battle Gear 3 FOZ files.
+//  Category: Archive
+// File Mask: *.FOZ
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+LittleEndian();
+
+//------------------------------------------------
+
+typedef struct
+{
+    char name[0x10]; // Length assumed
+    int unk10; // 1?
+    int unk14; // 0?
+    int unk18; // 0?
+    int unk1C; // Seems random? Float?
+
+    ubyte compressedBytes[FileSize() - 32] <bgcolor=cAqua>;
+} FOZ <bgcolor=cLtRed, read=ReadFOZ>;
+
+string ReadFOZ(FOZ& foz)
+{
+    return foz.name;
+}
+
+//------------------------------------------------
+
+FOZ foz;

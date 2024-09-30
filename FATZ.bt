@@ -1,0 +1,38 @@
+//------------------------------------------------
+//--- 010 Editor v13.0.2 Binary Template
+//
+//      File: FATZ.bt
+//   Authors: WarpZephyr
+//   Version: 1.0.5
+//   Purpose: Battle Gear 3 ZPACK archive FAT header.
+//  Category: Archive
+// File Mask: FAT_Z.BIN
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+// Sector Size is 0x800
+#define FATZ_ENTRY_COUNT 8192
+LittleEndian();
+
+//------------------------------------------------
+
+typedef struct
+{
+    char name[18]; // The names seem to bleed into what I thought was unk10 as a 32-bit int.
+    ushort unk10; // Seems random, special checksum? Part of name?
+    int sectorOffset;
+    int sectorCount;
+    int compressedSize;
+    int size;
+    int unk24; // Always -1?
+} FileEntry <bgcolor=cLtGreen, read=ReadFileEntry, optimize=false>;
+
+string ReadFileEntry(FileEntry& entry)
+{
+    return entry.name;
+}
+
+//------------------------------------------------
+
+FileEntry fileEntries[FATZ_ENTRY_COUNT];

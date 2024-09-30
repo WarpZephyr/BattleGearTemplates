@@ -1,0 +1,37 @@
+//------------------------------------------------
+//--- 010 Editor v13.0.2 Binary Template
+//
+//      File: FAT.bt
+//   Authors: WarpZephyr
+//   Version: 1.0.0
+//   Purpose: Battle Gear 2 archive FAT header.
+//  Category: Archive
+// File Mask: BG2.FAT
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+LittleEndian();
+
+//------------------------------------------------
+
+typedef struct
+{
+    char name[28];
+    int offset;
+} FileEntry <bgcolor=cLtGreen, read=ReadFileEntry, optimize=false>;
+
+string ReadFileEntry(FileEntry& entry)
+{
+    return entry.name;
+}
+
+//------------------------------------------------
+
+local int index <hidden=true> = 0;
+local ubyte end <hidden=true> = 0;
+while (!end)
+{
+    FileEntry entries;
+    end = entries.name == "END OF FILE" ? 1 : 0;
+}
